@@ -1,7 +1,8 @@
 package wms.cli;
 
+import wms.core.model.Location;
 import wms.core.service.*;
-import wms.core.repository.ExcelRepository;
+
 import java.util.*;
 
 public class CliApp {
@@ -39,9 +40,8 @@ public class CliApp {
             String username = sc.nextLine().trim();
             if (users.containsKey(username)) {
                 return username;
-            } else {
-                System.out.println("User tidak ditemukan, coba lagi.\n");
             }
+            System.out.println("User tidak ditemukan, coba lagi.\n");
         }
     }
 
@@ -50,13 +50,18 @@ public class CliApp {
             System.out.println("\n=== Menu Admin ===");
             System.out.println("1. Lihat Lokasi");
             System.out.println("2. Tambah Lokasi");
+            System.out.println("3. Edit Lokasi");
+            System.out.println("4. Hapus Lokasi");
             System.out.println("0. Logout");
             System.out.print("Pilih menu: ");
             String choice = sc.nextLine().trim();
+
             try {
                 switch (choice) {
                     case "1" -> listLocations();
                     case "2" -> addLocation();
+                    case "3" -> editLocation();
+                    case "4" -> deleteLocation();
                     case "0" -> {
                         System.out.println("Logout...\n");
                         return;
@@ -72,23 +77,22 @@ public class CliApp {
     private static void operatorMenu(String role) {
         while (true) {
             System.out.println("\n=== Menu Operator (" + role + ") ===");
-            switch (role) {
-                case "INBOUND" -> System.out.println("1. Inbound Barang");
-                case "INVENTORY" -> System.out.println("1. Relocate Barang");
-                case "OUTBOUND" -> System.out.println("1. Outbound Barang");
-            }
+            System.out.println("1. Proses");
             System.out.println("0. Logout");
             System.out.print("Pilih menu: ");
             String choice = sc.nextLine().trim();
+
+            if ("0".equals(choice)) {
+                System.out.println("Logout...\n");
+                return;
+            }
+
             try {
-                if ("0".equals(choice)) {
-                    System.out.println("Logout...\n");
-                    return;
-                }
                 switch (role) {
                     case "INBOUND" -> inbound();
                     case "INVENTORY" -> relocate();
                     case "OUTBOUND" -> outbound();
+                    default -> System.out.println("Role tidak dikenali.");
                 }
             } catch (Exception e) {
                 System.out.println("Error: " + e.getMessage());
@@ -98,40 +102,73 @@ public class CliApp {
 
     private static void listLocations() {
         System.out.println("\n=== Daftar Lokasi ===");
-        ExcelRepository.get().locations().forEach(System.out::println);
+        adminService.getLocations()
+                .forEach(l -> System.out.println(l.toBarcode()));
     }
 
     private static void addLocation() {
-        System.out.print("Masukkan kode lokasi baru: ");
-        String loc = sc.nextLine().trim();
+        System.out.print("Kode lokasi baru: ");
+        Location loc = Location.fromBarcode(sc.nextLine().trim());
         adminService.addLocation(loc);
         System.out.println("Lokasi berhasil ditambahkan.");
     }
 
+    private static void editLocation() {
+        System.out.print("Kode lokasi lama: ");
+        Location oldLoc = Location.fromBarcode(sc.nextLine().trim());
+        System.out.print("Kode lokasi baru: ");
+        Location newLoc = Location.fromBarcode(sc.nextLine().trim());
+        adminService.updateLocation(oldLoc, newLoc);
+        System.out.println("Lokasi berhasil diperbarui.");
+    }
+
+    private static void deleteLocation() {
+        System.out.print("Kode lokasi yang dihapus: ");
+        Location loc = Location.fromBarcode(sc.nextLine().trim());
+        adminService.deleteLocation(loc);
+        System.out.println("Lokasi berhasil dihapus.");
+    }
+
     private static void inbound() {
-        System.out.print("UPC: "); String upc = sc.nextLine().trim();
-        System.out.print("Manufacturer: "); String manu = sc.nextLine().trim();
-        System.out.print("Category: "); String cat = sc.nextLine().trim();
-        System.out.print("Qty: "); int qty = Integer.parseInt(sc.nextLine().trim());
-        System.out.print("Location: "); String loc = sc.nextLine().trim();
+        System.out.print("UPC: ");
+        String upc = sc.nextLine().trim();
+        System.out.print("Manufacturer: ");
+        String manu = sc.nextLine().trim();
+        System.out.print("Category: ");
+        String cat = sc.nextLine().trim();
+        System.out.print("Qty: ");
+        int qty = Integer.parseInt(sc.nextLine().trim());
+        System.out.print("Location: ");
+        Location loc = Location.fromBarcode(sc.nextLine().trim());
+
         inboundService.receive(upc, manu, cat, qty, loc);
         System.out.println("Inbound berhasil.");
     }
 
     private static void relocate() {
-        System.out.print("UPC: "); String upc = sc.nextLine().trim();
-        System.out.print("SKU: "); String sku = sc.nextLine().trim();
-        System.out.print("From Location: "); String from = sc.nextLine().trim();
-        System.out.print("To Location: "); String to = sc.nextLine().trim();
-        System.out.print("Qty: "); int qty = Integer.parseInt(sc.nextLine().trim());
+        System.out.print("UPC: ");
+        String upc = sc.nextLine().trim();
+        System.out.print("SKU: ");
+        String sku = sc.nextLine().trim();
+        System.out.print("From Location: ");
+        Location from = Location.fromBarcode(sc.nextLine().trim());
+        System.out.print("To Location: ");
+        Location to = Location.fromBarcode(sc.nextLine().trim());
+        System.out.print("Qty: ");
+        int qty = Integer.parseInt(sc.nextLine().trim());
+
         inventoryService.relocate(upc, sku, from, to, qty);
         System.out.println("Relocate berhasil.");
     }
 
     private static void outbound() {
-        System.out.print("UPC: "); String upc = sc.nextLine().trim();
-        System.out.print("Location: "); String loc = sc.nextLine().trim();
-        System.out.print("Qty: "); int qty = Integer.parseInt(sc.nextLine().trim());
+        System.out.print("UPC: ");
+        String upc = sc.nextLine().trim();
+        System.out.print("Location: ");
+        Location loc = Location.fromBarcode(sc.nextLine().trim());
+        System.out.print("Qty: ");
+        int qty = Integer.parseInt(sc.nextLine().trim());
+
         outboundService.pick(upc, loc, qty);
         System.out.println("Outbound berhasil.");
     }
