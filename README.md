@@ -1,4 +1,4 @@
-# Warehouse Management System (WMS)
+# 🏭 Warehouse Management System (WMS)
 
 Warehouse Management System (WMS) adalah aplikasi berbasis Java yang dirancang untuk mengelola data gudang secara terstruktur menggunakan pendekatan **Object-Oriented Programming (OOP)**, **layered architecture**, serta **penyimpanan data berbasis Excel (Apache POI)**.
 
@@ -6,7 +6,7 @@ Aplikasi ini mendukung pengelolaan lokasi gudang dan data barang berbasis batch,
 
 ---
 
-## 1. Fitur Utama
+## 1. Fitur Utama 
 
 ### 1.1 Manajemen Lokasi Gudang
 - Menampilkan seluruh lokasi gudang
