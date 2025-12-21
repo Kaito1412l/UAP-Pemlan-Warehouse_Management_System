@@ -1,402 +1,460 @@
 package wms.gui;
 
-import wms.core.service.*;
+import wms.core.model.Location;
+import wms.core.model.StockBatch;
 import wms.core.repository.ExcelRepository;
+import wms.core.service.*;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.JTableHeader;
-import javax.swing.table.TableRowSorter;
-import javax.swing.RowSorter;
-import javax.swing.SortOrder;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.geom.RoundRectangle2D;
-import java.util.ArrayList;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class MainFrame extends JFrame {
+
+    private static final String ADMIN = "ADMIN";
+    private static final String INBOUND = "INBOUND";
+    private static final String INVENTORY = "INVENTORY";
+    private static final String OUTBOUND = "OUTBOUND";
+
+    private final String role;
+    private final String username;
+
+    private final Color PRIMARY_COLOR = new Color(70, 130, 180);
+    private final Color HOVER_COLOR = new Color(100, 149, 237);
+    private final Color BG_COLOR = new Color(236, 240, 241);
 
     private final AdminService adminService = new AdminService();
     private final InboundService inboundService = new InboundService();
     private final InventoryService inventoryService = new InventoryService();
     private final OutboundService outboundService = new OutboundService();
 
-    private final String currentRole;
-    private final String currentUsername;
-
-    private final Color BG_COLOR = new Color(236, 240, 241);
-    private final Color ADMIN_COLOR = new Color(70, 130, 180);
-    private final Color OPERATOR_COLOR = new Color(39, 174, 96);
-    private final Color DANGER_COLOR = new Color(231, 76, 60);
-    private final Font MAIN_FONT = new Font("Segoe UI", Font.PLAIN, 14);
-    private final Font HEADER_FONT = new Font("Segoe UI", Font.BOLD, 20);
-
     public MainFrame(String role, String username) {
-        this.currentRole = role;
-        this.currentUsername = username;
-
-        setTitle("Warehouse Management System - " + role);
+        this.role = role;
+        this.username = username;
+        setTitle("WMS - " + username + " (" + role + ")");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1000, 700);
+        setSize(800, 600);
         setLocationRelativeTo(null);
         getContentPane().setBackground(BG_COLOR);
-
         initUI();
     }
 
     private void initUI() {
-        if ("ADMIN".equals(currentRole)) {
-            add(createAdminPanel());
-        } else {
-            add(createOperatorPanel());
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+
+        if (ADMIN.equals(role)) {
+            tabbedPane.addTab("Dashboard", createDashboardPanel());
+            tabbedPane.addTab("Lokasi", createLocationPanel());
+            tabbedPane.addTab("Stok", createStockPanel());
+        } else if (INBOUND.equals(role)) {
+            tabbedPane.addTab("Inbound", createInboundPanel());
+        } else if (INVENTORY.equals(role)) {
+            tabbedPane.addTab("Relokasi", createRelocatePanel());
+        } else if (OUTBOUND.equals(role)) {
+            tabbedPane.addTab("Outbound", createOutboundPanel());
         }
+
+        add(tabbedPane, BorderLayout.CENTER);
+
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        footer.setBackground(BG_COLOR);
+        JButton logoutBtn = new ModernButton("Logout");
+        logoutBtn.addActionListener(e -> {
+            new LoginApp().setVisible(true);
+            dispose();
+        });
+        footer.add(logoutBtn);
+        add(footer, BorderLayout.SOUTH);
     }
 
-    private void loadLocationsToTable(DefaultTableModel model) {
-        model.setRowCount(0);
-        List<String> locations = ExcelRepository.get().locations();
-
-        for (String loc : locations) {
-            model.addRow(new String[]{loc});
-        }
-    }
-
-    private JPanel createAdminPanel() {
-        JPanel panel = new JPanel(new BorderLayout(20, 20));
-        panel.setBackground(BG_COLOR);
+    // ========== PANEL DASHBOARD (ADMIN) ==========
+    private JPanel createDashboardPanel() {
+        JPanel panel = new RoundedPanel(25, Color.WHITE);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setBackground(ADMIN_COLOR);
-        headerPanel.setBorder(new EmptyBorder(15, 20, 15, 20));
 
-        JLabel titleLabel = new JLabel("Admin Dashboard");
-        titleLabel.setFont(HEADER_FONT);
-        titleLabel.setForeground(Color.WHITE);
+        JLabel title = new JLabel("Admin Dashboard");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(title);
+        panel.add(Box.createVerticalStrut(20));
 
-        JLabel userLabel = new JLabel("User: " + currentUsername);
-        userLabel.setFont(new Font("Segoe UI", Font.ITALIC, 14));
-        userLabel.setForeground(new Color(220, 220, 220));
+        JButton btnViewLocations = new ModernButton("Lihat Lokasi");
+        btnViewLocations.addActionListener(e -> showMessageList("Lokasi", adminService.getLocations()
+                .stream().map(Location::toBarcode).collect(Collectors.toList())));
+        panel.add(btnViewLocations);
+        panel.add(Box.createVerticalStrut(10));
 
-        headerPanel.add(titleLabel, BorderLayout.WEST);
-        headerPanel.add(userLabel, BorderLayout.EAST);
-        panel.add(headerPanel, BorderLayout.NORTH);
+        JButton btnViewStock = new ModernButton("Lihat Stok");
+        btnViewStock.addActionListener(e -> showStockTable());
+        panel.add(btnViewStock);
 
-        DefaultTableModel model = new DefaultTableModel(new String[]{"Daftar Lokasi Gudang"}, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
+        return panel;
+    }
+
+    // ========== PANEL MANAJEMEN LOKASI (ADMIN) ==========
+    private JPanel createLocationPanel() {
+        JPanel panel = new RoundedPanel(25, Color.WHITE);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        JLabel title = new JLabel("Manajemen Lokasi");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(title);
+        panel.add(Box.createVerticalStrut(20));
+
+        // Tambah Lokasi
+        JTextField addField = new RoundedTextField(20);
+        addField.setMaximumSize(new Dimension(300, 40));
+        ModernButton addBtn = new ModernButton("Tambah Lokasi");
+        addBtn.addActionListener(e -> {
+            try {
+                Location loc = Location.fromBarcode(addField.getText().trim());
+                adminService.addLocation(loc);
+                JOptionPane.showMessageDialog(this, "Lokasi berhasil ditambahkan.");
+                addField.setText("");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
-        };
+        });
 
+        panel.add(new JLabel("Tambah Lokasi (format: AREA-LINE-RACK-LEVEL-POS)"));
+        panel.add(Box.createVerticalStrut(5));
+        panel.add(addField);
+        panel.add(Box.createVerticalStrut(10));
+        panel.add(addBtn);
+        panel.add(Box.createVerticalStrut(20));
+
+        // Edit Lokasi
+        JTextField oldField = new RoundedTextField(20);
+        JTextField newField = new RoundedTextField(20);
+        oldField.setMaximumSize(new Dimension(300, 40));
+        newField.setMaximumSize(new Dimension(300, 40));
+        ModernButton editBtn = new ModernButton("Update Lokasi");
+        editBtn.addActionListener(e -> {
+            try {
+                Location oldLoc = Location.fromBarcode(oldField.getText().trim());
+                Location newLoc = Location.fromBarcode(newField.getText().trim());
+                adminService.updateLocation(oldLoc, newLoc);
+                JOptionPane.showMessageDialog(this, "Lokasi berhasil diperbarui.");
+                oldField.setText("");
+                newField.setText("");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        panel.add(new JLabel("Edit Lokasi"));
+        panel.add(Box.createVerticalStrut(5));
+        panel.add(new JLabel("Lama:"));
+        panel.add(oldField);
+        panel.add(Box.createVerticalStrut(5));
+        panel.add(new JLabel("Baru:"));
+        panel.add(newField);
+        panel.add(Box.createVerticalStrut(10));
+        panel.add(editBtn);
+        panel.add(Box.createVerticalStrut(20));
+
+        // Hapus Lokasi
+        JTextField deleteField = new RoundedTextField(20);
+        deleteField.setMaximumSize(new Dimension(300, 40));
+        ModernButton deleteBtn = new ModernButton("Hapus Lokasi");
+        deleteBtn.addActionListener(e -> {
+            try {
+                Location loc = Location.fromBarcode(deleteField.getText().trim());
+                adminService.deleteLocation(loc);
+                JOptionPane.showMessageDialog(this, "Lokasi berhasil dihapus.");
+                deleteField.setText("");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        panel.add(new JLabel("Hapus Lokasi"));
+        panel.add(Box.createVerticalStrut(5));
+        panel.add(deleteField);
+        panel.add(Box.createVerticalStrut(10));
+        panel.add(deleteBtn);
+
+        return panel;
+    }
+
+    // ========== PANEL STOK (ADMIN) ==========
+    private JPanel createStockPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+
+        DefaultTableModel model = new DefaultTableModel(
+                new String[]{"UPC", "SKU", "BatchDate", "Qty", "Location"}, 0
+        );
         JTable table = new JTable(model);
+        table.setFillsViewportHeight(true);
+        JScrollPane scroll = new JScrollPane(table);
 
-        TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
-        table.setRowSorter(sorter);
+        // Load data
+        List<StockBatch> stock = ExcelRepository.get().getAllStock();
+        for (StockBatch b : stock) {
+            model.addRow(new Object[]{
+                    b.upc, b.sku, b.batchDate.toString(), b.quantity, b.location.toBarcode()
+            });
+        }
 
-        List<RowSorter.SortKey> sortKeys = new ArrayList<>();
-        sortKeys.add(new RowSorter.SortKey(0, SortOrder.ASCENDING));
-        sorter.setSortKeys(sortKeys);
-        sorter.sort();
-
-        styleTable(table, ADMIN_COLOR);
-
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        scrollPane.getViewport().setBackground(Color.WHITE);
-        panel.add(scrollPane, BorderLayout.CENTER);
-
-        loadLocationsToTable(model);
-
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 0));
-        btnPanel.setBackground(BG_COLOR);
-
-        ModernButton addLocBtn = new ModernButton("Tambah Lokasi", new Color(243, 156, 18)); // Orange
-        ModernButton logoutBtn = new ModernButton("Logout", DANGER_COLOR);
-
-        btnPanel.add(addLocBtn);
-        btnPanel.add(logoutBtn);
-        panel.add(btnPanel, BorderLayout.SOUTH);
-
-        addLocBtn.addActionListener(e -> {
-            String loc = JOptionPane.showInputDialog(this, "Masukkan kode lokasi baru:");
-            if (loc != null && !loc.trim().isEmpty()) {
-                try {
-                    adminService.addLocation(loc.trim());
-                    loadLocationsToTable(model);
-                    JOptionPane.showMessageDialog(this, "Lokasi berhasil ditambahkan.");
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
-                }
-            }
-        });
-
-        logoutBtn.addActionListener(e -> logout());
-
+        panel.add(scroll, BorderLayout.CENTER);
         return panel;
     }
 
-    private JPanel createOperatorPanel() {
-        JPanel panel = new JPanel(new BorderLayout(20, 20));
-        panel.setBackground(BG_COLOR);
+    // ========== PANEL INBOUND ==========
+    private JPanel createInboundPanel() {
+        JPanel panel = new RoundedPanel(25, Color.WHITE);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        // --- Header ---
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setBackground(OPERATOR_COLOR);
-        headerPanel.setBorder(new EmptyBorder(15, 20, 15, 20));
+        JLabel title = new JLabel("Terima Barang (Inbound)");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(title);
+        panel.add(Box.createVerticalStrut(20));
 
-        JLabel titleLabel = new JLabel("Operator Menu: " + currentRole);
-        titleLabel.setFont(HEADER_FONT);
-        titleLabel.setForeground(Color.WHITE);
+        JTextField upcField = new RoundedTextField(20);
+        JTextField manuField = new RoundedTextField(20);
+        JTextField catField = new RoundedTextField(20);
+        JTextField qtyField = new RoundedTextField(20);
+        JTextField locField = new RoundedTextField(20);
 
-        JLabel userLabel = new JLabel("User: " + currentUsername);
-        userLabel.setFont(new Font("Segoe UI", Font.ITALIC, 14));
-        userLabel.setForeground(new Color(220, 220, 220));
+        ModernButton submitBtn = new ModernButton("Proses Inbound");
+        submitBtn.addActionListener(e -> {
+            try {
+                String upc = upcField.getText().trim();
+                String manu = manuField.getText().trim();
+                String cat = catField.getText().trim();
+                int qty = Integer.parseInt(qtyField.getText().trim());
+                Location loc = Location.fromBarcode(locField.getText().trim());
 
-        headerPanel.add(titleLabel, BorderLayout.WEST);
-        headerPanel.add(userLabel, BorderLayout.EAST);
-        panel.add(headerPanel, BorderLayout.NORTH);
+                inboundService.receive(upc, manu, cat, qty, loc);
+                JOptionPane.showMessageDialog(this, "Inbound berhasil.");
+                upcField.setText("");
+                manuField.setText("");
+                catField.setText("");
+                qtyField.setText("");
+                locField.setText("");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
 
-        // --- Content ---
-        JPanel centerPanel = new JPanel(new GridBagLayout());
-        centerPanel.setBackground(Color.WHITE);
-        centerPanel.setBorder(BorderFactory.createLineBorder(new Color(230,230,230), 1));
-
-        JLabel welcomeIcon = new JLabel("<html><div style='text-align: center;'><h2>Selamat Bekerja, " + currentUsername + "</h2>" +
-                "<p>Silakan pilih tugas operasional di bawah ini.</p></div></html>");
-        welcomeIcon.setFont(MAIN_FONT);
-        centerPanel.add(welcomeIcon);
-
-        panel.add(centerPanel, BorderLayout.CENTER);
-
-        // --- Buttons ---
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 20));
-        btnPanel.setBackground(BG_COLOR);
-
-        ModernButton actionBtn = new ModernButton("Jalankan Tugas", OPERATOR_COLOR);
-        actionBtn.setPreferredSize(new Dimension(200, 50));
-
-        ModernButton logoutBtn = new ModernButton("Logout", DANGER_COLOR);
-        logoutBtn.setPreferredSize(new Dimension(150, 50));
-
-        btnPanel.add(actionBtn);
-        btnPanel.add(logoutBtn);
-        panel.add(btnPanel, BorderLayout.SOUTH);
-
-        actionBtn.addActionListener(e -> performOperatorTask());
-        logoutBtn.addActionListener(e -> logout());
+        addLabeledField(panel, "UPC", upcField);
+        addLabeledField(panel, "Manufacturer", manuField);
+        addLabeledField(panel, "Category", catField);
+        addLabeledField(panel, "Qty", qtyField);
+        addLabeledField(panel, "Location (P-area)", locField);
+        panel.add(Box.createVerticalStrut(20));
+        panel.add(submitBtn);
 
         return panel;
     }
 
-    private void performOperatorTask() {
-        switch (currentRole) {
-            case "INBOUND" -> inboundDialog();
-            case "INVENTORY" -> relocateDialog();
-            case "OUTBOUND" -> outboundDialog();
-            default -> JOptionPane.showMessageDialog(this, "Role tidak dikenali.");
-        }
-    }
+    // ========== PANEL RELOKASI ==========
+    private JPanel createRelocatePanel() {
+        JPanel panel = new RoundedPanel(25, Color.WHITE);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
 
-    private void inboundDialog() {
-        RoundedTextField upcField = new RoundedTextField(20);
-        RoundedTextField manuField = new RoundedTextField(20);
-        RoundedTextField catField = new RoundedTextField(20);
-        RoundedTextField qtyField = new RoundedTextField(20);
-        RoundedTextField locField = new RoundedTextField(20);
+        JLabel title = new JLabel("Relokasi Stok");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(title);
+        panel.add(Box.createVerticalStrut(20));
 
-        Object[] message = {
-                "UPC:", upcField,
-                "Manufacturer:", manuField,
-                "Category:", catField,
-                "Qty:", qtyField,
-                "Location:", locField
-        };
+        JTextField upcField = new RoundedTextField(20);
+        JTextField skuField = new RoundedTextField(20);
+        JTextField fromField = new RoundedTextField(20);
+        JTextField toField = new RoundedTextField(20);
+        JTextField qtyField = new RoundedTextField(20);
 
-        int option = JOptionPane.showConfirmDialog(this, message, "Inbound Barang", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (option == JOptionPane.OK_OPTION) {
+        ModernButton submitBtn = new ModernButton("Proses Relokasi");
+        submitBtn.addActionListener(e -> {
             try {
-                inboundService.receive(upcField.getText(), manuField.getText(), catField.getText(),
-                        Integer.parseInt(qtyField.getText()), locField.getText());
-                JOptionPane.showMessageDialog(this, "Inbound berhasil.");
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
-            }
-        }
-    }
+                String upc = upcField.getText().trim();
+                String sku = skuField.getText().trim();
+                Location from = Location.fromBarcode(fromField.getText().trim());
+                Location to = Location.fromBarcode(toField.getText().trim());
+                int qty = Integer.parseInt(qtyField.getText().trim());
 
-    private void relocateDialog() {
-        RoundedTextField upcField = new RoundedTextField(20);
-        RoundedTextField skuField = new RoundedTextField(20);
-        RoundedTextField fromField = new RoundedTextField(20);
-        RoundedTextField toField = new RoundedTextField(20);
-        RoundedTextField qtyField = new RoundedTextField(20);
-
-        Object[] message = {
-                "UPC:", upcField,
-                "SKU:", skuField,
-                "From Location:", fromField,
-                "To Location:", toField,
-                "Qty:", qtyField
-        };
-
-        int option = JOptionPane.showConfirmDialog(this, message, "Relocate Barang", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (option == JOptionPane.OK_OPTION) {
-            try {
-                inventoryService.relocate(upcField.getText(), skuField.getText(), fromField.getText(),
-                        toField.getText(), Integer.parseInt(qtyField.getText()));
-                JOptionPane.showMessageDialog(this, "Relocate berhasil.");
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
-            }
-        }
-    }
-
-    private void outboundDialog() {
-        RoundedTextField upcField = new RoundedTextField(20);
-        RoundedTextField locField = new RoundedTextField(20);
-        RoundedTextField qtyField = new RoundedTextField(20);
-
-        Object[] message = {
-                "UPC:", upcField,
-                "Location:", locField,
-                "Qty:", qtyField
-        };
-
-        int option = JOptionPane.showConfirmDialog(this, message, "Outbound Barang", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (option == JOptionPane.OK_OPTION) {
-            try {
-                outboundService.pick(upcField.getText(), locField.getText(), Integer.parseInt(qtyField.getText()));
-                JOptionPane.showMessageDialog(this, "Outbound berhasil.");
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
-            }
-        }
-    }
-
-    private void logout() {
-        new LoginApp().setVisible(true);
-        this.dispose();
-    }
-
-    private void styleTable(JTable table, Color headerColor) {
-        table.setFont(MAIN_FONT);
-        table.setRowHeight(35);
-        table.setFillsViewportHeight(true);
-        table.setShowVerticalLines(false);
-        table.setIntercellSpacing(new Dimension(0, 0));
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.setSelectionBackground(new Color(232, 240, 254));
-        table.setSelectionForeground(Color.BLACK);
-
-        JTableHeader header = table.getTableHeader();
-        header.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        header.setBackground(headerColor);
-        header.setForeground(Color.WHITE);
-        header.setOpaque(true);
-
-        header.setDefaultRenderer(new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-                JLabel l = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-
-                // Styling
-                l.setBackground(headerColor);
-                l.setForeground(Color.WHITE);
-                l.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-                l.setFont(new Font("Segoe UI", Font.BOLD, 14));
-
-                l.setIcon(null);
-                if (table.getRowSorter() != null) {
-                    List<? extends RowSorter.SortKey> keys = table.getRowSorter().getSortKeys();
-                    if (keys != null && !keys.isEmpty()) {
-                        RowSorter.SortKey key = keys.get(0);
-                        if (key.getColumn() == column) {
-                            if (key.getSortOrder() == SortOrder.ASCENDING) {
-                                l.setIcon(UIManager.getIcon("Table.ascendingSortIcon"));
-                            } else if (key.getSortOrder() == SortOrder.DESCENDING) {
-                                l.setIcon(UIManager.getIcon("Table.descendingSortIcon"));
-                            }
-                        }
-                    }
-                }
-
-                return l;
+                inventoryService.relocate(upc, sku, from, to, qty);
+                JOptionPane.showMessageDialog(this, "Relokasi berhasil.");
+                upcField.setText("");
+                skuField.setText("");
+                fromField.setText("");
+                toField.setText("");
+                qtyField.setText("");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
 
-        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
-        centerRenderer.setBorder(new EmptyBorder(0, 10, 0, 10));
-        for (int i=0; i<table.getColumnCount(); i++) {
-            table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+        addLabeledField(panel, "UPC", upcField);
+        addLabeledField(panel, "SKU", skuField);
+        addLabeledField(panel, "From Location", fromField);
+        addLabeledField(panel, "To Location", toField);
+        addLabeledField(panel, "Qty", qtyField);
+        panel.add(Box.createVerticalStrut(20));
+        panel.add(submitBtn);
+
+        return panel;
+    }
+
+    // ========== PANEL OUTBOUND ==========
+    private JPanel createOutboundPanel() {
+        JPanel panel = new RoundedPanel(25, Color.WHITE);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        JLabel title = new JLabel("Ambil Barang (Outbound)");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(title);
+        panel.add(Box.createVerticalStrut(20));
+
+        JTextField upcField = new RoundedTextField(20);
+        JTextField locField = new RoundedTextField(20);
+        JTextField qtyField = new RoundedTextField(20);
+
+        ModernButton submitBtn = new ModernButton("Proses Outbound");
+        submitBtn.addActionListener(e -> {
+            try {
+                String upc = upcField.getText().trim();
+                Location loc = Location.fromBarcode(locField.getText().trim());
+                int qty = Integer.parseInt(qtyField.getText().trim());
+
+                outboundService.pick(upc, loc, qty);
+                JOptionPane.showMessageDialog(this, "Outbound berhasil.");
+                upcField.setText("");
+                locField.setText("");
+                qtyField.setText("");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        addLabeledField(panel, "UPC", upcField);
+        addLabeledField(panel, "Location (R-area)", locField);
+        addLabeledField(panel, "Qty", qtyField);
+        panel.add(Box.createVerticalStrut(20));
+        panel.add(submitBtn);
+
+        return panel;
+    }
+
+    private void addLabeledField(JPanel panel, String label, JTextField field) {
+        panel.add(new JLabel(label));
+        panel.add(Box.createVerticalStrut(5));
+        field.setMaximumSize(new Dimension(350, 40));
+        panel.add(field);
+        panel.add(Box.createVerticalStrut(15));
+    }
+
+    private void showMessageList(String title, java.util.List<String> items) {
+        JTextArea area = new JTextArea();
+        area.setEditable(false);
+        area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        for (String item : items) {
+            area.append(item + "\n");
+        }
+        JOptionPane.showMessageDialog(this, new JScrollPane(area), title, JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void showStockTable() {
+        DefaultTableModel model = new DefaultTableModel(
+                new String[]{"UPC", "SKU", "BatchDate", "Qty", "Location"}, 0
+        );
+        JTable table = new JTable(model);
+        List<StockBatch> stock = ExcelRepository.get().getAllStock();
+        for (StockBatch b : stock) {
+            model.addRow(new Object[]{
+                    b.upc, b.sku, b.batchDate.toString(), b.quantity, b.location.toBarcode()
+            });
+        }
+        JOptionPane.showMessageDialog(this, new JScrollPane(table), "Daftar Stok", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // ========== KOMPONEN CUSTOM ==========
+    class RoundedPanel extends JPanel {
+        private final int radius;
+        private final Color backgroundColor;
+
+        public RoundedPanel(int radius, Color bgColor) {
+            this.radius = radius;
+            this.backgroundColor = bgColor;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(backgroundColor);
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, radius, radius);
         }
     }
 
     static class RoundedTextField extends JTextField {
-        private Shape shape;
         public RoundedTextField(int size) {
             super(size);
             setOpaque(false);
-            setBorder(new EmptyBorder(5, 10, 5, 10));
+            setBorder(new EmptyBorder(5, 15, 5, 15));
         }
+
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Color.WHITE);
-            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 15, 15);
+            g2.setColor(new Color(245, 245, 245));
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 20, 20);
             super.paintComponent(g);
         }
+
         @Override
         protected void paintBorder(Graphics g) {
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(new Color(189, 195, 199));
-            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 15, 15);
-        }
-        @Override
-        public boolean contains(int x, int y) {
-            if (shape == null || !shape.getBounds().equals(getBounds())) {
-                shape = new RoundRectangle2D.Float(0, 0, getWidth() - 1, getHeight() - 1, 15, 15);
-            }
-            return shape.contains(x, y);
+            g2.setColor(new Color(200, 200, 200));
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 20, 20);
         }
     }
 
-    static class ModernButton extends JButton {
-        private final Color baseColor;
-        private final Color hoverColor;
-
-        public ModernButton(String text, Color color) {
+    class ModernButton extends JButton {
+        public ModernButton(String text) {
             super(text);
-            this.baseColor = color;
-            this.hoverColor = color.brighter();
-
             setContentAreaFilled(false);
             setFocusPainted(false);
             setBorderPainted(false);
             setFont(new Font("Segoe UI", Font.BOLD, 14));
             setForeground(Color.WHITE);
             setCursor(new Cursor(Cursor.HAND_CURSOR));
-            setPreferredSize(new Dimension(160, 45));
+            setBackground(PRIMARY_COLOR);
 
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent e) {
-                    setBackground(hoverColor);
+                    setBackground(HOVER_COLOR);
                     repaint();
                 }
+
                 @Override
                 public void mouseExited(MouseEvent e) {
-                    setBackground(baseColor);
+                    setBackground(PRIMARY_COLOR);
                     repaint();
                 }
             });
-            setBackground(baseColor);
         }
 
         @Override
@@ -404,7 +462,7 @@ public class MainFrame extends JFrame {
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(getBackground());
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 15, 15);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
             super.paintComponent(g);
         }
     }
