@@ -1,10 +1,13 @@
 package wms.core.repository;
 
+import wms.core.model.Location;
+import wms.core.model.StockBatch;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.*;
 import java.nio.file.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -16,7 +19,10 @@ public class ExcelRepository {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private static final ExcelRepository INSTANCE = new ExcelRepository();
-    public static ExcelRepository get() { return INSTANCE; }
+
+    public static ExcelRepository get() {
+        return INSTANCE;
+    }
 
     private ExcelRepository() {}
 
@@ -41,14 +47,21 @@ public class ExcelRepository {
         if (Files.exists(Path.of(DB))) return;
 
         try (Workbook wb = new XSSFWorkbook()) {
-            sheet(wb, "STOCK", "UPC","SKU","BatchDate","Qty","Location");
-            sheet(wb, "LOG", "Time","Action","UPC","SKU","Qty","From","To");
+            sheet(wb, "STOCK", "UPC", "SKU", "BatchDate", "Qty", "Location");
+            sheet(wb, "LOG", "Time", "Action", "UPC", "SKU", "Qty", "From", "To");
             Sheet loc = sheet(wb, "LOCATIONS", "Location");
+
             for (String d : List.of(
-                    "PA-01-01-01-01","PA-01-02-01-01",
-                    "RA-01-01-01-01","RA-01-01-01-02")) {
-                loc.createRow(loc.getLastRowNum()+1).createCell(0).setCellValue(d);
+                    "PA-01-01-01-01",
+                    "PA-01-02-01-01",
+                    "RA-01-01-01-01",
+                    "RA-01-01-01-02"
+            )) {
+                loc.createRow(loc.getLastRowNum() + 1)
+                        .createCell(0)
+                        .setCellValue(d);
             }
+
             try (FileOutputStream fos = new FileOutputStream(DB)) {
                 wb.write(fos);
             }
@@ -58,29 +71,133 @@ public class ExcelRepository {
     private Sheet sheet(Workbook wb, String name, String... headers) {
         Sheet s = wb.createSheet(name);
         Row h = s.createRow(0);
-        for (int i=0;i<headers.length;i++) h.createCell(i).setCellValue(headers[i]);
+        for (int i = 0; i < headers.length; i++) {
+            h.createCell(i).setCellValue(headers[i]);
+        }
         return s;
     }
 
     public static String s(Cell c) {
-        return c==null?"":c.toString().trim();
+        return c == null ? "" : c.toString().trim();
     }
 
     public static int i(Cell c) {
-        return c==null?0:(int)c.getNumericCellValue();
+        return c == null ? 0 : (int) c.getNumericCellValue();
     }
 
     public static String now() {
         return LocalDateTime.now().format(TS);
     }
 
-    public List<String> locations() {
-        List<String> l = new ArrayList<>();
+    public List<Location> getAllLocations() {
+        List<Location> list = new ArrayList<>();
         execute(wb -> {
             Sheet s = wb.getSheet("LOCATIONS");
-            for (int r=1;r<=s.getLastRowNum();r++)
-                l.add(s(s.getRow(r).getCell(0)));
+            for (int i = 1; i <= s.getLastRowNum(); i++) {
+                String code = s(s.getRow(i).getCell(0));
+                list.add(Location.fromBarcode(code));
+            }
         });
-        return l;
+        return list;
+    }
+
+    public boolean isLocationUsed(Location loc) {
+        final boolean[] used = {false};
+        execute(wb -> {
+            Sheet s = wb.getSheet("STOCK");
+            for (int i = 1; i <= s.getLastRowNum(); i++) {
+                Row r = s.getRow(i);
+                if (loc.toBarcode().equals(s(r.getCell(4))) &&
+                        i(r.getCell(3)) > 0) {
+                    used[0] = true;
+                    break;
+                }
+            }
+        });
+        return used[0];
+    }
+
+    public void updateLocation(Location oldLoc, Location newLoc) {
+        execute(wb -> {
+            Sheet locSheet = wb.getSheet("LOCATIONS");
+            for (int i = 1; i <= locSheet.getLastRowNum(); i++) {
+                Row r = locSheet.getRow(i);
+                if (oldLoc.toBarcode().equals(s(r.getCell(0)))) {
+                    r.getCell(0).setCellValue(newLoc.toBarcode());
+                }
+            }
+
+            Sheet stock = wb.getSheet("STOCK");
+            for (int i = 1; i <= stock.getLastRowNum(); i++) {
+                Row r = stock.getRow(i);
+                if (oldLoc.toBarcode().equals(s(r.getCell(4)))) {
+                    r.getCell(4).setCellValue(newLoc.toBarcode());
+                }
+            }
+        });
+    }
+
+    public void deleteLocation(Location loc) {
+        execute(wb -> {
+            Sheet s = wb.getSheet("LOCATIONS");
+            for (int i = 1; i <= s.getLastRowNum(); i++) {
+                Row r = s.getRow(i);
+                if (loc.toBarcode().equals(s(r.getCell(0)))) {
+                    s.removeRow(r);
+                    break;
+                }
+            }
+        });
+    }
+
+    public void saveStockBatch(StockBatch b) {
+        execute(wb -> {
+            Sheet s = wb.getSheet("STOCK");
+            Row r = s.createRow(s.getLastRowNum() + 1);
+            r.createCell(0).setCellValue(b.upc);
+            r.createCell(1).setCellValue(b.sku);
+            r.createCell(2).setCellValue(b.batchDate.toString());
+            r.createCell(3).setCellValue(b.quantity);
+            r.createCell(4).setCellValue(b.location.toBarcode());
+        });
+    }
+
+    public List<StockBatch> getAllStock() {
+        List<StockBatch> list = new ArrayList<>();
+        execute(wb -> {
+            Sheet s = wb.getSheet("STOCK");
+            for (int i = 1; i <= s.getLastRowNum(); i++) {
+                Row r = s.getRow(i);
+                list.add(new StockBatch(
+                        s(r.getCell(0)),
+                        s(r.getCell(1)),
+                        LocalDate.parse(s(r.getCell(2))),
+                        i(r.getCell(3)),
+                        Location.fromBarcode(s(r.getCell(4)))
+                ));
+            }
+        });
+        return list;
+    }
+
+    public void log(
+            String action,
+            String upc,
+            String sku,
+            int qty,
+            Location from,
+            Location to
+    ) {
+        execute(wb -> {
+            Sheet s = wb.getSheet("LOG");
+            Row r = s.createRow(s.getLastRowNum() + 1);
+            r.createCell(0).setCellValue(now());
+            r.createCell(1).setCellValue(action);
+            r.createCell(2).setCellValue(upc);
+            r.createCell(3).setCellValue(sku);
+            r.createCell(4).setCellValue(qty);
+            if (from != null) r.createCell(6).setCellValue(from.toBarcode());
+            if (to != null) r.createCell(7).setCellValue(to.toBarcode());
+        });
     }
 }
