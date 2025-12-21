@@ -77,15 +77,15 @@ public class ExcelRepository {
         return s;
     }
 
-    public static String s(Cell c) {
+    private static String s(Cell c) {
         return c == null ? "" : c.toString().trim();
     }
 
-    public static int i(Cell c) {
+    private static int i(Cell c) {
         return c == null ? 0 : (int) c.getNumericCellValue();
     }
 
-    public static String now() {
+    private static String now() {
         return LocalDateTime.now().format(TS);
     }
 
@@ -95,7 +95,9 @@ public class ExcelRepository {
             Sheet s = wb.getSheet("LOCATIONS");
             for (int i = 1; i <= s.getLastRowNum(); i++) {
                 String code = s(s.getRow(i).getCell(0));
-                list.add(Location.fromBarcode(code));
+                if (!code.isBlank()) {
+                    list.add(Location.fromBarcode(code));
+                }
             }
         });
         return list;
@@ -103,33 +105,44 @@ public class ExcelRepository {
 
     public boolean isLocationUsed(Location loc) {
         final boolean[] used = {false};
+
         execute(wb -> {
             Sheet s = wb.getSheet("STOCK");
             for (int i = 1; i <= s.getLastRowNum(); i++) {
                 Row r = s.getRow(i);
-                if (loc.toBarcode().equals(s(r.getCell(4))) &&
-                        i(r.getCell(3)) > 0) {
+                if (r == null) continue;
+
+                String locCode = s(r.getCell(4));
+                int qty = i(r.getCell(3));
+
+                if (loc.toBarcode().equals(locCode) && qty > 0) {
                     used[0] = true;
                     break;
                 }
             }
         });
+
         return used[0];
     }
 
     public void updateLocation(Location oldLoc, Location newLoc) {
         execute(wb -> {
+
             Sheet locSheet = wb.getSheet("LOCATIONS");
             for (int i = 1; i <= locSheet.getLastRowNum(); i++) {
                 Row r = locSheet.getRow(i);
+                if (r == null) continue;
+
                 if (oldLoc.toBarcode().equals(s(r.getCell(0)))) {
                     r.getCell(0).setCellValue(newLoc.toBarcode());
                 }
             }
 
-            Sheet stock = wb.getSheet("STOCK");
-            for (int i = 1; i <= stock.getLastRowNum(); i++) {
-                Row r = stock.getRow(i);
+            Sheet stockSheet = wb.getSheet("STOCK");
+            for (int i = 1; i <= stockSheet.getLastRowNum(); i++) {
+                Row r = stockSheet.getRow(i);
+                if (r == null) continue;
+
                 if (oldLoc.toBarcode().equals(s(r.getCell(4)))) {
                     r.getCell(4).setCellValue(newLoc.toBarcode());
                 }
@@ -140,8 +153,11 @@ public class ExcelRepository {
     public void deleteLocation(Location loc) {
         execute(wb -> {
             Sheet s = wb.getSheet("LOCATIONS");
+
             for (int i = 1; i <= s.getLastRowNum(); i++) {
                 Row r = s.getRow(i);
+                if (r == null) continue;
+
                 if (loc.toBarcode().equals(s(r.getCell(0)))) {
                     s.removeRow(r);
                     break;
@@ -164,19 +180,40 @@ public class ExcelRepository {
 
     public List<StockBatch> getAllStock() {
         List<StockBatch> list = new ArrayList<>();
+
         execute(wb -> {
             Sheet s = wb.getSheet("STOCK");
-            for (int i = 1; i <= s.getLastRowNum(); i++) {
-                Row r = s.getRow(i);
-                list.add(new StockBatch(
-                        s(r.getCell(0)),
-                        s(r.getCell(1)),
-                        LocalDate.parse(s(r.getCell(2))),
-                        i(r.getCell(3)),
-                        Location.fromBarcode(s(r.getCell(4)))
-                ));
+
+            for (int row = 1; row <= s.getLastRowNum(); row++) {
+                try {
+                    Row r = s.getRow(row);
+                    if (r == null) continue;
+
+                    String upc = s(r.getCell(0));
+                    String sku = s(r.getCell(1));
+                    String dateStr = s(r.getCell(2));
+                    int qty = i(r.getCell(3));
+                    String locStr = s(r.getCell(4));
+
+                    if (upc.isBlank() || sku.isBlank() || qty <= 0 || dateStr.isBlank() || locStr.isBlank())
+                        continue;
+
+                    LocalDate batchDate = LocalDate.parse(dateStr);
+                    Location loc = Location.fromBarcode(locStr);
+
+                    list.add(new StockBatch(
+                            upc,
+                            sku,
+                            batchDate,
+                            qty,
+                            loc
+                    ));
+                } catch (Exception ignore) {
+                    // baris rusak diabaikan
+                }
             }
         });
+
         return list;
     }
 
@@ -196,8 +233,8 @@ public class ExcelRepository {
             r.createCell(2).setCellValue(upc);
             r.createCell(3).setCellValue(sku);
             r.createCell(4).setCellValue(qty);
-            if (from != null) r.createCell(6).setCellValue(from.toBarcode());
-            if (to != null) r.createCell(7).setCellValue(to.toBarcode());
+            r.createCell(5).setCellValue(from != null ? from.toBarcode() : "");
+            r.createCell(6).setCellValue(to != null ? to.toBarcode() : "");
         });
     }
 }
