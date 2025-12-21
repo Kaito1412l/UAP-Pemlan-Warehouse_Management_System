@@ -35,7 +35,7 @@ public class LoginApp extends JFrame {
 
         JPanel cardPanel = new RoundedPanel(25, Color.WHITE);
         cardPanel.setLayout(new BoxLayout(cardPanel, BoxLayout.Y_AXIS));
-        cardPanel.setBorder(new EmptyBorder(40, 50, 40, 50)); // Padding dalam kartu
+        cardPanel.setBorder(new EmptyBorder(40, 50, 40, 50));
         cardPanel.setPreferredSize(new Dimension(400, 450));
 
         JLabel titleLabel = new JLabel("Welcome");
