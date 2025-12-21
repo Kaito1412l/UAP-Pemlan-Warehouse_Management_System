@@ -1,4 +1,4 @@
-package gui;
+package wms.gui;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;

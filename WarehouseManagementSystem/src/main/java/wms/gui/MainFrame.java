@@ -1,4 +1,4 @@
-package gui;
+package wms.gui;
 
 import wms.core.service.*;
 import wms.core.repository.ExcelRepository;

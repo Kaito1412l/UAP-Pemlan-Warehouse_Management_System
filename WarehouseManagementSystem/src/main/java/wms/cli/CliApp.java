@@ -1,4 +1,4 @@
-package cli;
+package wms.cli;
 
 import wms.core.service.*;
 import wms.core.repository.ExcelRepository;
