@@ -209,7 +209,6 @@ public class ExcelRepository {
                             loc
                     ));
                 } catch (Exception ignore) {
-                    // baris rusak diabaikan
                 }
             }
         });
