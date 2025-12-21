@@ -239,7 +239,6 @@ public class MainFrame extends JFrame {
         gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
         ModernButton editBtn = new ModernButton("Update", new Color(243, 156, 18));
         editBtn.addActionListener(e -> {
-
             if (!validateInput(oldField.getText(), "Lokasi Lama")) return;
             if (!validateInput(newField.getText(), "Lokasi Baru")) return;
 
@@ -393,6 +392,7 @@ public class MainFrame extends JFrame {
         ModernButton btn = new ModernButton("Keluarkan Barang (Outbound)", PRIMARY_COLOR);
         btn.setAlignmentX(Component.LEFT_ALIGNMENT);
         btn.addActionListener(e -> {
+
             if (!validateInput(upc.getText(), "UPC Code")) return;
             if (!validateInput(loc.getText(), "Location")) return;
             if (!validateInput(qty.getText(), "Quantity")) return;
