@@ -57,18 +57,18 @@ Aplikasi ini mendukung pengelolaan lokasi gudang dan data barang berbasis batch,
 
 Aplikasi menggunakan **layered architecture** untuk menjaga keterpisahan tanggung jawab.
 
-Presentation Layer
-├── CLI
-└── GUI (Swing)
+Presentation Layer  
+├── CLI  
+└── GUI (Swing)  
 
-Service Layer
-└── Business Logic
+Service Layer  
+└── Business Logic  
 
-Repository Layer
-└── ExcelRepository (Apache POI)
+Repository Layer  
+└── ExcelRepository (Apache POI)  
 
-Model Layer
-└── Entity / Domain Object
+Model Layer  
+└── Entity / Domain Object  
 
 ### Penjelasan Layer
 
@@ -85,25 +85,25 @@ Model Layer
 
 ## 3. Struktur Folder Proyek
 
-src/
-└── main/
-└── java/
-└── wms/
-├── core/
-│ ├── model/
-│ │ ├── Location.java
-│ │ └── StockBatch.java
-│ ├── repository/
-│ │ ├── ExcelRepository.java
-│ │ └── ExcelOperation.java
-│ └── service/
-│ ├── AdminService.java
-│ └── StockService.java
-├── cli/
-│ ├── LoginCLI.java
-│ └── AdminCLI.java
-└── gui/
-└── SwingApp.java
+src/  
+└── main/  
+└── java/  
+└── wms/  
+├── core/  
+│ ├── model/  
+│ │ ├── Location.java  
+│ │ └── StockBatch.java  
+│ ├── repository/  
+│ │ ├── ExcelRepository.java  
+│ │ └── ExcelOperation.java  
+│ └── service/  
+│ ├── AdminService.java  
+│ └── StockService.java  
+├── cli/  
+│ ├── LoginCLI.java  
+│ └── AdminCLI.java  
+└── gui/  
+└── SwingApp.java  
 
 ---
 
