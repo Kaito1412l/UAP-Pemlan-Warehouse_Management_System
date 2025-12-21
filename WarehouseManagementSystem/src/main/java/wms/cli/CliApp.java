@@ -1,6 +1,8 @@
 package wms.cli;
 
 import wms.core.model.Location;
+import wms.core.model.StockBatch;
+import wms.core.repository.ExcelRepository;
 import wms.core.service.*;
 
 import java.util.*;
@@ -52,6 +54,7 @@ public class CliApp {
             System.out.println("2. Tambah Lokasi");
             System.out.println("3. Edit Lokasi");
             System.out.println("4. Hapus Lokasi");
+            System.out.println("5. Lihat Daftar Barang");
             System.out.println("0. Logout");
             System.out.print("Pilih menu: ");
             String choice = sc.nextLine().trim();
@@ -62,6 +65,7 @@ public class CliApp {
                     case "2" -> addLocation();
                     case "3" -> editLocation();
                     case "4" -> deleteLocation();
+                    case "5" -> listStock();
                     case "0" -> {
                         System.out.println("Logout...\n");
                         return;
@@ -127,6 +131,27 @@ public class CliApp {
         Location loc = Location.fromBarcode(sc.nextLine().trim());
         adminService.deleteLocation(loc);
         System.out.println("Lokasi berhasil dihapus.");
+    }
+
+    private static void listStock() {
+        System.out.println("\n=== Daftar Barang ===");
+
+        List<StockBatch> stock = ExcelRepository.get().getAllStock();
+
+        if (stock.isEmpty()) {
+            System.out.println("Tidak ada data barang.");
+            return;
+        }
+
+        for (StockBatch b : stock) {
+            System.out.println(
+                    "UPC: " + b.upc +
+                            " | SKU: " + b.sku +
+                            " | Batch: " + b.batchDate +
+                            " | Qty: " + b.quantity +
+                            " | Loc: " + b.location.toBarcode()
+            );
+        }
     }
 
     private static void inbound() {
